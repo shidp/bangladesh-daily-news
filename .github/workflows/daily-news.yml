@@ -25,15 +25,9 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Fetch & send Bangladesh news
+        uses: shidp/bangladesh-daily-news-action@v1
         with:
-          python-version: '3.12'
-
-      - name: Run news script
-        env:
-          GMAIL_USER: ${{ secrets.GMAIL_USER }}
-          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
-          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
-        run: |
-          python3 daily_news.py
+          gmail-user: ${{ secrets.GMAIL_USER }}
+          gmail-app-password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          recipient-email: ${{ secrets.RECIPIENT_EMAIL }}
