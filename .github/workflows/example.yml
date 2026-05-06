@@ -1,0 +1,28 @@
+# 示例 workflow — 复制到你的仓库使用
+# 文件路径：.github/workflows/bangladesh-news.yml
+
+name: Bangladesh Daily News
+
+on:
+  # 每天 UTC 02:00 = BDT 08:00
+  schedule:
+    - cron: "0 2 * * *"
+  # 本地手动测试
+  workflow_dispatch:
+
+jobs:
+  news:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取新闻并发送邮件
+        uses: shidp/bangladesh-daily-news-action@v1
+        with:
+          gmail-user: ${{ secrets.GMAIL_USER }}
+          gmail-app-password: ${{ secrets.GMAIL_APP_PASSWORD }}
+          recipient-email: ${{ secrets.RECIPIENT_EMAIL }}
+          news-count: 12
+          subject-prefix: "🇧🇩 孟加拉今日新闻"
+          # 可选：自定义优先级关键词
+          # top-source: "imf,world bank,election,conflict"
+          # 可选：自定义排除关键词
+          # exclude-keywords: "sports,cricket,movie"

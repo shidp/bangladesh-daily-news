@@ -1,0 +1,71 @@
+# action.yml — GitHub Action 元数据
+name: "Bangladesh Daily News Digest"
+description: >
+  每天自动抓取 The Daily Star 孟加拉新闻，生成摘要邮件。
+  支持 Gmail SMTP 发送，可配置收件人、新闻数量、邮件主题。
+branding:
+  icon: "rss"
+  color: "green"
+author: "南海 (shidp)"
+
+inputs:
+  gmail-user:
+    description: "Gmail 发件地址"
+    required: true
+    default: ""
+  gmail-app-password:
+    description: "Gmail App Password（16位，非登录密码）"
+    required: true
+    default: ""
+  recipient-email:
+    description: "收件邮箱，留空则同 gmail-user"
+    required: false
+    default: ""
+  news-count:
+    description: "选取新闻条数"
+    required: false
+    default: "12"
+  subject-prefix:
+    description: "邮件主题前缀"
+    required: false
+    default: "🇧🇩 孟加拉今日新闻"
+  top-source:
+    description: "优先来源关键词（逗号分隔）"
+    required: false
+    default: "government,politics,election,sheikh hasina,bangladesh bank,imf,world bank,adb"
+  exclude-keywords:
+    description: "排除关键词（逗号分隔）"
+    required: false
+    default: "sports,cricket,football,entertainment,movie,celebrity"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.12"
+
+    - name: Install dependencies
+      shell: bash
+      run: pip install requests beautifulsoup4 lxml --quiet
+
+    - name: Run news digest
+      shell: bash
+      env:
+        GMAIL_USER: ${{ inputs.gmail-user }}
+        GMAIL_APP_PASSWORD: ${{ inputs.gmail-app-password }}
+        RECIPIENT_EMAIL: ${{ inputs.recipient-email }}
+        NEWS_COUNT: ${{ inputs.news-count }}
+        SUBJECT_PREFIX: ${{ inputs.subject-prefix }}
+        TOP_SOURCE: ${{ inputs.top-source }}
+        EXCLUDE_KEYWORDS: ${{ inputs.exclude-keywords }}
+      run: |
+        # 确保可执行权限
+        chmod +x "$GITHUB_ACTION_PATH/entrypoint.sh"
+        "$GITHUB_ACTION_PATH/entrypoint.sh"
+
+    - name: Report status
+      if: always()
+      shell: bash
+      run: echo "✅ News digest completed at $(date)"

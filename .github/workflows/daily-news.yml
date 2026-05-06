@@ -1,0 +1,39 @@
+# GitHub Actions - 孟加拉每日新闻摘要
+# 每天早上 08:00 BDT（UTC 02:00）自动运行
+# 需要先在仓库 Settings → Secrets and variables → Actions 中添加：
+#   GMAIL_USER       = shidp304@gmail.com
+#   GMAIL_APP_PASSWORD = pvob zeff apte ngdy
+#   RECIPIENT_EMAIL  = shidp304@gmail.com
+
+name: Daily Bangladesh News Digest
+
+on:
+  schedule:
+    # UTC 02:00 = BDT 08:00
+    - cron: '0 2 * * *'
+  workflow_dispatch:  # 允许手动触发
+
+permissions:
+  contents: read
+
+jobs:
+  send-news:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run news script
+        env:
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
+        run: |
+          python3 daily_news.py
