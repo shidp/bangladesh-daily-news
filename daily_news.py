@@ -47,7 +47,7 @@ _EXcludeRaw = os.environ.get(
     "football,cricket,match,player,score,goal,premier league,movie,film,actor,actress,"
     "director,trailer,netflix,song,album,concert,fashion week,beauty,recipe,horoscope"
 )
-EXCLUDE_KEYWORDS = [kw.strip() for kw in _ExcludeRaw.split(",") if kw.strip()]
+EXCLUDE_KEYWORDS = [kw.strip() for kw in _EXcludeRaw.split(",") if kw.strip()]
 
 
 class ArticleParser(HTMLParser):
@@ -89,6 +89,19 @@ class ArticleBodyParser(HTMLParser):
         self._in_p = False
         self._current = ""
 
+    def _is_copyright(self, text):
+        """判断是否为版权/免责声明等无关文字"""
+        t = text.lower()
+        copyright_keywords = [
+            "copyright", "all rights reserved", "reprinted", "without permission",
+            "the daily star", "syed mohammed ali", "editorial policy",
+            "disclaimer", "terms of use", "privacy policy",
+            "follow us on", "subscribe to", "newsletter", "social media",
+            "facebook", "twitter", "instagram", "linkedin",
+            "republication", "syndication", "fair use",
+        ]
+        return any(kw in t for kw in copyright_keywords)
+
     def handle_starttag(self, tag, attrs):
         if tag in self._skip_tags:
             self._in_skip = True
@@ -100,7 +113,7 @@ class ArticleBodyParser(HTMLParser):
             self._in_skip = False
         if tag == "p" and self._in_p:
             text = self._current.strip()
-            if len(text) > 50:
+            if len(text) > 50 and not self._is_copyright(text):
                 self.paragraphs.append(text)
             self._current = ""
             self._in_p = False

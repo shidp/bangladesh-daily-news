@@ -78,6 +78,19 @@ class ArticleBodyParser(HTMLParser):
         self._current_skip = False
         self._depth = 0
 
+    def _is_copyright(self, text):
+        """判断是否为版权/免责声明等无关文字"""
+        t = text.lower()
+        copyright_keywords = [
+            "copyright", "all rights reserved", "reprinted", "without permission",
+            "the daily star", "syed mohammed ali", "editorial policy",
+            "disclaimer", "terms of use", "privacy policy",
+            "follow us on", "subscribe to", "newsletter", "social media",
+            "facebook", "twitter", "instagram", "linkedin",
+            "republication", "syndication", "fair use",
+        ]
+        return any(kw in t for kw in copyright_keywords)
+
     def handle_starttag(self, tag, attrs):
         if tag in self._skip_tags:
             self._current_skip = True
@@ -95,6 +108,8 @@ class ArticleBodyParser(HTMLParser):
             return
         text = data.strip()
         if self._in_p and len(text) > 50:
+            if self._is_copyright(text):
+                return
             self.paragraphs.append(text)
 
 
