@@ -2,35 +2,32 @@
 """
 Daily Star Bangladesh News Digest - GitHub Actions 版本
 每天抓取新闻 → 获取正文 → Extractive Summarization → 发送邮件
-CGI变量：GMAIL_USER, GMAIL_APP_PASSWORD, RECIPIENT_EMAIL
+通过 AgentMail API 发送，环境变量 AGENTMAIL_API_KEY, RECIPIENT_EMAIL
 """
 
 import urllib.request
-import smtplib
-import ssl
 import re
 import sys
 import os
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import json
 from datetime import datetime, timezone, timedelta
 from html.parser import HTMLParser
 from collections import Counter
 from html import unescape
 
 # ============================================================
-# 配置区（从环境变量读取，支持 GitHub Action inputs）
+# 环境变量（由 action.yml / GitHub Action inputs 传入）
 # ============================================================
-GMAIL_ADDRESS = os.environ.get("GMAIL_USER", "")
-GMAIL_APP_PASSWORD = os.environ.get("GMAIL_APP_PASSWORD", "")
-RECIPIENT_EMAIL = os.environ.get("RECIPIENT_EMAIL", os.environ.get("GMAIL_USER", ""))
+AGENTMAIL_API_KEY = os.environ.get("AGENTMAIL_API_KEY", "")
+AGENTMAIL_EMAIL = os.environ.get("AGENTMAIL_EMAIL", "shidp@agentmail.to")
+RECIPIENT_EMAIL = os.environ.get("RECIPIENT_EMAIL", "shidp304@gmail.com")
 NEWS_URL = "https://www.thedailystar.net/todays-news"
 
-# 可配置参数
+# 可选配置
 NEWS_COUNT = int(os.environ.get("NEWS_COUNT", "12"))
-SUBJECT_PREFIX = os.environ.get("SUBJECT_PREFIX", "🇧🇩 孟加拉今日新闻")
+SUBJECT_PREFIX = os.environ.get("SUBJECT_PREFIX", "🇧🇩 孟加拉每日新闻摘要")
 
-# 优先级关键词（逗号分隔，默认值覆盖）
+# 优先关键词
 _TOP_SOURCE = os.environ.get(
     "TOP_SOURCE",
     "government,govt,minister,cabinet,parliament,election,yunus,hasina,bnp,awami league,"
@@ -41,7 +38,7 @@ _TOP_SOURCE = os.environ.get(
 )
 PRIORITY_KEYWORDS = [kw.strip() for kw in _TOP_SOURCE.split(",") if kw.strip()]
 
-# 排除关键词（逗号分隔）
+# 排除词（体育/娱乐）
 _EXcludeRaw = os.environ.get(
     "EXCLUDE_KEYWORDS",
     "football,cricket,match,player,score,goal,premier league,movie,film,actor,actress,"
@@ -90,7 +87,6 @@ class ArticleBodyParser(HTMLParser):
         self._current = ""
 
     def _is_copyright(self, text):
-        """判断是否为版权/免责声明等无关文字"""
         t = text.lower()
         copyright_keywords = [
             "copyright", "all rights reserved", "reprinted", "without permission",
@@ -258,13 +254,13 @@ def build_email_html(top_articles, fetch_time):
       <table width="620" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="border-radius:12px;box-shadow:0 4px 16px rgba(0,0,0,0.1);overflow:hidden;">
         <tr>
           <td style="background:linear-gradient(135deg,#006a4e,#004d38);padding:32px 36px;">
-            <h1 style="margin:0;color:#fff;font-size:26px;font-weight:700;">🇧🇩 孟加拉每日 Top 12 新闻</h1>
+            <h1 style="margin:0;color:#fff;font-size:26px;font-weight:700;">🇧🇩 孟加拉每日新闻摘要 Top 12 条</h1>
             <p style="margin:10px 0 0;color:rgba(255,255,255,0.85);font-size:15px;">{bd_time} · 政府 · 政治 · 国际局势</p>
           </td>
         </tr>
         <tr>
           <td style="background:#f0f4ff;padding:10px 36px;border-bottom:1px solid #e0e0e0;">
-            <span style="color:#1a73e8;font-size:13px;font-weight:600;">📰 Top {len(top_articles)} 条 · 每条附摘要 + 原文链接</span>
+            <span style="color:#1a73e8;font-size:13px;font-weight:600;">📰 Top {len(top_articles)} 条 · 每条附 AI 摘要 + 原文链接</span>
           </td>
         </tr>
         <tr>
@@ -273,7 +269,7 @@ def build_email_html(top_articles, fetch_time):
         <tr>
           <td style="padding:20px 28px;background:#f8f9fa;border-top:1px solid #eee;">
             <p style="margin:0;color:#999;font-size:12px;line-height:1.8;">
-              由 GitHub Actions 云端自动生成 · 每日 08:00 BDT · <a href="{NEWS_URL}" style="color:#1a73e8;">查看原页面 →</a>
+              由 GitHub Actions 自动发送 · 每日 08:00 BDT · 发件：{AGENTMAIL_EMAIL} · <a href="{NEWS_URL}" style="color:#1a73e8;">查看全部新闻 →</a>
             </p>
           </td>
         </tr>
@@ -284,24 +280,51 @@ def build_email_html(top_articles, fetch_time):
 
 
 def send_email(subject, html_body):
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = GMAIL_ADDRESS
-    msg["To"] = RECIPIENT_EMAIL
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+    """通过 AgentMail API 发送邮件"""
+    if not AGENTMAIL_API_KEY:
+        print("[ERROR] AGENTMAIL_API_KEY 未设置")
+        return False
 
-    context = ssl.create_default_context()
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
-        server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
-        server.sendmail(GMAIL_ADDRESS, RECIPIENT_EMAIL, msg.as_string())
-    print(f"[OK] 邮件已发送至 {RECIPIENT_EMAIL}")
-    return True
+    text_body = re.sub(r'<[^>]+>', ' ', html_body)
+    text_body = re.sub(r'\s+', ' ', text_body).strip()
+
+    payload = {
+        "to": RECIPIENT_EMAIL,
+        "subject": subject,
+        "html": html_body,
+        "text": text_body[:2000],
+    }
+
+    url = f"https://api.agentmail.to/v0/inboxes/{AGENTMAIL_EMAIL}/messages/send"
+    headers = {
+        "Authorization": f"Bearer {AGENTMAIL_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            resp_body = resp.read().decode("utf-8")
+            print(f"[OK] 邮件已发送至 {RECIPIENT_EMAIL} (AgentMail)")
+            return True
+    except urllib.error.HTTPError as e:
+        print(f"[ERROR] AgentMail 发送失败: HTTP {e.code}")
+        try:
+            err_body = e.read().decode("utf-8")
+            print(f"[ERROR] 详情: {err_body}")
+        except Exception:
+            pass
+        return False
+    except Exception as e:
+        print(f"[ERROR] 发送失败: {e}")
+        return False
 
 
 def main():
-    # 验证必填参数
-    if not GMAIL_ADDRESS or not GMAIL_APP_PASSWORD:
-        print("[ERROR] 缺少必填环境变量：GMAIL_USER 和 GMAIL_APP_PASSWORD 必须设置")
+    if not AGENTMAIL_API_KEY:
+        print("[ERROR] 请设置 AGENTMAIL_API_KEY 环境变量")
         sys.exit(1)
 
     bd_tz = timezone(timedelta(hours=6))

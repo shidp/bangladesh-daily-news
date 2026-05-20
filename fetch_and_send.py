@@ -5,13 +5,10 @@ Daily Star Bangladesh News Digest - Top 12 摘要版
 """
 
 import urllib.request
-import smtplib
-import ssl
 import re
 import sys
 import json
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+import os
 from datetime import datetime, timezone, timedelta
 from html.parser import HTMLParser
 from collections import Counter
@@ -20,8 +17,8 @@ from html import unescape
 # ============================================================
 # 配置区
 # ============================================================
-GMAIL_ADDRESS = "shidp304@gmail.com"
-GMAIL_APP_PASSWORD = "pvob zeff apte ngdy"
+AGENTMAIL_API_KEY = os.environ.get("AGENTMAIL_API_KEY", "")
+AGENTMAIL_EMAIL = "shidp@agentmail.to"
 RECIPIENT_EMAIL = "shidp304@gmail.com"
 NEWS_URL = "https://www.thedailystar.net/todays-news"
 TOP_N = 12  # 每天发 Top 12 条
@@ -342,7 +339,7 @@ def build_email_html(top_articles, fetch_time):
         <tr>
           <td style="padding:20px 28px; background:#f8f9fa; border-top:1px solid #eee;">
             <p style="margin:0; color:#999; font-size:12px; line-height:1.8;">
-              由 WorkBuddy 自动生成 · 每日 08:00 BDT · 
+              由 WorkBuddy 自动生成 · 每日 08:00 BDT · 发件：{AGENTMAIL_EMAIL} · 
               <a href="{NEWS_URL}" style="color:#1a73e8;">查看 The Daily Star 全部新闻 →</a>
             </p>
           </td>
@@ -356,19 +353,45 @@ def build_email_html(top_articles, fetch_time):
 
 
 def send_email(subject, html_body):
-    msg = MIMEMultipart("alternative")
-    msg["Subject"] = subject
-    msg["From"] = GMAIL_ADDRESS
-    msg["To"] = RECIPIENT_EMAIL
-    msg.attach(MIMEText(html_body, "html", "utf-8"))
+    """通过 AgentMail API 发送邮件"""
+    if not AGENTMAIL_API_KEY:
+        print("[ERROR] AGENTMAIL_API_KEY 未设置")
+        return False
 
-    context = ssl.create_default_context()
+    # 构建纯文本版本
+    text_body = re.sub(r'<[^>]+>', ' ', html_body)
+    text_body = re.sub(r'\s+', ' ', text_body).strip()
+
+    payload = {
+        "to": RECIPIENT_EMAIL,
+        "subject": subject,
+        "html": html_body,
+        "text": text_body[:2000],  # 限制纯文本长度
+    }
+
+    url = f"https://api.agentmail.to/v0/inboxes/{AGENTMAIL_EMAIL}/messages/send"
+    headers = {
+        "Authorization": f"Bearer {AGENTMAIL_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+
     try:
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
-            server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
-            server.sendmail(GMAIL_ADDRESS, RECIPIENT_EMAIL, msg.as_string())
-        print(f"[OK] 邮件已发送至 {RECIPIENT_EMAIL}")
-        return True
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            resp_body = resp.read().decode("utf-8")
+            print(f"[OK] 邮件已发送至 {RECIPIENT_EMAIL} (AgentMail)")
+            print(f"[INFO] 响应: {resp_body}")
+            return True
+    except urllib.error.HTTPError as e:
+        print(f"[ERROR] AgentMail 发送失败: HTTP {e.code}")
+        try:
+            err_body = e.read().decode("utf-8")
+            print(f"[ERROR] 详情: {err_body}")
+        except Exception:
+            pass
+        return False
     except Exception as e:
         print(f"[ERROR] 发送失败: {e}")
         return False
@@ -409,11 +432,19 @@ def main():
     html_body = build_email_html(top_articles, now)
     send_email(subject, html_body)
 
-    # 保存预览
-    preview_path = f"/Users/shidp/WorkBuddy/20260424013415/daily_news/preview_top10_{today_str}.html"
-    with open(preview_path, "w", encoding="utf-8") as f:
-        f.write(html_body)
-    print(f"[INFO] 预览已保存: {preview_path}")
+    # 保存预览（本地环境）
+    preview_dir = "/Users/shidp/WorkBuddy/20260424013415/daily_news"
+    if os.path.isdir(preview_dir):
+        preview_path = f"{preview_dir}/preview_top10_{today_str}.html"
+        with open(preview_path, "w", encoding="utf-8") as f:
+            f.write(html_body)
+        print(f"[INFO] 预览已保存: {preview_path}")
+    else:
+        # GitHub Actions 环境或其他环境，保存到当前目录
+        preview_path = f"preview_top10_{today_str}.html"
+        with open(preview_path, "w", encoding="utf-8") as f:
+            f.write(html_body)
+        print(f"[INFO] 预览已保存: {preview_path}")
 
 
 if __name__ == "__main__":

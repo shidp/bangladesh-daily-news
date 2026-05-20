@@ -1,9 +1,7 @@
 # GitHub Actions - 孟加拉每日新闻摘要
-# 每天早上 08:00 BDT（UTC 02:00）自动运行
-# 需要先在仓库 Settings → Secrets and variables → Actions 中添加：
-#   GMAIL_USER       = shidp304@gmail.com
-#   GMAIL_APP_PASSWORD = pvob zeff apte ngdy
-#   RECIPIENT_EMAIL  = shidp304@gmail.com
+# 每天 UTC 02:00 (= BDT 08:00) 自动运行
+# 需要在仓库 Settings → Secrets and variables → Actions 中配置：
+#   AGENTMAIL_API_KEY  = am_us_xxxxxxxx...
 
 name: Daily Bangladesh News Digest
 
@@ -11,7 +9,7 @@ on:
   schedule:
     # UTC 02:00 = BDT 08:00
     - cron: '0 2 * * *'
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:  # 支持手动触发
 
 permissions:
   contents: read
@@ -28,6 +26,6 @@ jobs:
       - name: Fetch & send Bangladesh news
         uses: ./
         with:
-          gmail-user: ${{ secrets.GMAIL_USER }}
-          gmail-app-password: ${{ secrets.GMAIL_APP_PASSWORD }}
-          recipient-email: ${{ secrets.RECIPIENT_EMAIL }}
+          agentmail-api-key: ${{ secrets.AGENTMAIL_API_KEY }}
+          agentmail-email: shidp@agentmail.to
+          recipient-email: shidp304@gmail.com

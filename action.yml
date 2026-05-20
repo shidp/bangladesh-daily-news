@@ -1,40 +1,41 @@
-# action.yml — GitHub Action 元数据
+# action.yml — GitHub Action 入口配置
 name: "Bangladesh Daily News Digest"
 description: >
-  每天自动抓取 The Daily Star 孟加拉新闻，生成摘要邮件。
-  支持 Gmail SMTP 发送，可配置收件人、新闻数量、邮件主题。
+  每天自动抓取孟加拉 The Daily Star 头条新闻，
+  使用 AI 提取摘要后通过 AgentMail 发送邮件。
+  通过 AgentMail API 发送邮件，无需 Gmail App Password。
 branding:
   icon: "rss"
   color: "green"
 author: "南海 (shidp)"
 
 inputs:
-  gmail-user:
-    description: "Gmail 发件地址"
+  agentmail-api-key:
+    description: "AgentMail API Key (以 am_ 开头)"
     required: true
     default: ""
-  gmail-app-password:
-    description: "Gmail App Password（16位，非登录密码）"
-    required: true
-    default: ""
-  recipient-email:
-    description: "收件邮箱，留空则同 gmail-user"
+  agentmail-email:
+    description: "AgentMail 发件邮箱"
     required: false
-    default: ""
+    default: "shidp@agentmail.to"
+  recipient-email:
+    description: "收件人邮箱"
+    required: false
+    default: "shidp304@gmail.com"
   news-count:
-    description: "选取新闻条数"
+    description: "每天发送的新闻数量"
     required: false
     default: "12"
   subject-prefix:
-    description: "邮件主题前缀"
+    description: "邮件标题前缀"
     required: false
-    default: "🇧🇩 孟加拉今日新闻"
+    default: "🇧🇩 孟加拉每日新闻摘要"
   top-source:
-    description: "优先来源关键词（逗号分隔）"
+    description: "优先关键词列表，逗号分隔"
     required: false
     default: "government,politics,election,sheikh hasina,bangladesh bank,imf,world bank,adb"
   exclude-keywords:
-    description: "排除关键词（逗号分隔）"
+    description: "排除关键词列表，逗号分隔"
     required: false
     default: "sports,cricket,football,entertainment,movie,celebrity"
 
@@ -53,15 +54,14 @@ runs:
     - name: Run news digest
       shell: bash
       env:
-        GMAIL_USER: ${{ inputs.gmail-user }}
-        GMAIL_APP_PASSWORD: ${{ inputs.gmail-app-password }}
+        AGENTMAIL_API_KEY: ${{ inputs.agentmail-api-key }}
+        AGENTMAIL_EMAIL: ${{ inputs.agentmail-email }}
         RECIPIENT_EMAIL: ${{ inputs.recipient-email }}
         NEWS_COUNT: ${{ inputs.news-count }}
         SUBJECT_PREFIX: ${{ inputs.subject-prefix }}
         TOP_SOURCE: ${{ inputs.top-source }}
         EXCLUDE_KEYWORDS: ${{ inputs.exclude-keywords }}
       run: |
-        # 确保可执行权限
         chmod +x "$GITHUB_ACTION_PATH/entrypoint.sh"
         "$GITHUB_ACTION_PATH/entrypoint.sh"
 
